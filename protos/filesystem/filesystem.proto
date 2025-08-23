@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package filesystem;
+
+option go_package = "./pkg/generated/filesystem;filesystem";
+
+message File {
+    string name = 1;
+    string path = 2;
+    bytes data = 3;
+}
+
+message UploadFilesystemResponse {
+    string id = 1;
+    int64 size = 2;
+}
+
+message DownloadRequest {
+    string id = 1;
+}
+
+message ManifestRequest {
+    string id = 1;
+    string path = 2;
+    bool recursive = 3;
+}
+
+message ManifestEntry {
+    string name = 1;
+    string path = 2;
+    int64 size = 3;
+}
+
+message ManifestResponse {
+    repeated ManifestEntry files = 1;
+}
+
+service StorageService {
+    rpc Upload(stream File) returns (UploadFilesystemResponse);
+    rpc Download(DownloadRequest) returns (stream File);
+    rpc GetManifest(ManifestRequest) returns (ManifestResponse);
+}
