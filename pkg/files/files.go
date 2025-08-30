@@ -18,14 +18,19 @@ type FileProgress struct {
 	File        *filesystem.File
 }
 
-func Stream(parentDir string, file *os.File, fileChan chan<- *FileProgress) error {
+func Stream(fullPath string, fileChan chan<- *FileProgress) error {
+	file, err := os.OpenFile(fullPath, os.O_RDONLY, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
 	info, err := file.Stat()
 	if err != nil {
 		return err
 	}
 
-	fileName := info.Name()
-	filePath := path.Join(parentDir, fileName)
+	filePath := fullPath
 
 	if info.IsDir() {
 		entries, err := file.ReadDir(0)
@@ -37,12 +42,8 @@ func Stream(parentDir string, file *os.File, fileChan chan<- *FileProgress) erro
 
 		for i, entry := range entries {
 			entryPath := path.Join(filePath, entry.Name())
-			f, err := os.OpenFile(entryPath, os.O_RDONLY, os.ModePerm)
-			if err != nil {
-				return err
-			}
 
-			errs[i] = Stream(filePath, f, fileChan)
+			errs[i] = Stream(entryPath, fileChan)
 		}
 
 		return errors.Join(errs...)
@@ -68,7 +69,7 @@ func Stream(parentDir string, file *os.File, fileChan chan<- *FileProgress) erro
 				Chunk:       i,
 				File: &filesystem.File{
 					Name: info.Name(),
-					Path: parentDir,
+					Path: path.Dir(fullPath),
 					Data: data[:n],
 				},
 			}

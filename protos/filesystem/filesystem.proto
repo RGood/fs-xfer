@@ -16,23 +16,16 @@ message UploadFilesystemResponse {
 }
 
 message DownloadRequest {
-    string id = 1;
+    string path = 1;
 }
 
 message ManifestRequest {
-    string id = 1;
-    string path = 2;
-    bool recursive = 3;
-}
-
-message ManifestEntry {
-    string name = 1;
-    string path = 2;
-    int64 size = 3;
+    string path = 1;
+    bool recursive = 2;
 }
 
 message ManifestResponse {
-    repeated ManifestEntry files = 1;
+    repeated string files = 1;
 }
 
 service StorageService {
