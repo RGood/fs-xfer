@@ -124,7 +124,7 @@ func download(url string, remoteFolder, localFolder string) {
 				panic(err)
 			}
 
-			f, err := os.OpenFile(fullFileName, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+			f, err := os.OpenFile(fullFileName, os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
 				panic(err)
 			}

@@ -59,7 +59,7 @@ func (s *StorageService) Upload(stream filesystem.StorageService_UploadServer) e
 				return err
 			}
 
-			f, err := os.OpenFile(fullFileName, os.O_CREATE|os.O_WRONLY, 0755)
+			f, err := os.OpenFile(fullFileName, os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
 				println("Error creating file:", fullFileName)
 				return err
