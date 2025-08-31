@@ -8,6 +8,8 @@ Supports arbitrary file size by transferring in chunks.
 
 ### Help
 
+Print help text.
+
 `fs`
 
 ### Upload
