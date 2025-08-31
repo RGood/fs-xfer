@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sort"
 
 	"github.com/RGood/fs-xfer/pkg/files"
 	"github.com/RGood/fs-xfer/pkg/generated/filesystem"
@@ -104,11 +105,78 @@ func (s *StorageClient) Upload(ctx context.Context, localPath string) (string, i
 	return res.GetId(), res.GetSize(), nil
 }
 
-func (s *StorageClient) GetManifest(ctx context.Context, remotePath string, recursive bool) (*filesystem.ManifestResponse, error) {
+type File struct {
+	name string
+}
+
+func (f *File) GetName() string {
+	return f.name
+}
+
+func (f *File) GetChildren() []FSEntry {
+	return nil
+}
+
+func (f *File) cmp(e FSEntry) bool {
+	if _, ok := e.(*Folder); ok {
+		return false
+	}
+	return f.name < e.GetName()
+}
+
+type Folder struct {
+	name     string
+	children []FSEntry
+}
+
+func (f *Folder) GetName() string {
+	return f.name + "/"
+}
+
+func (f *Folder) GetChildren() []FSEntry {
+	return f.children
+}
+
+func (f *Folder) cmp(e FSEntry) bool {
+	if _, ok := e.(*File); ok {
+		return true
+	}
+	return f.name < e.GetName()
+}
+
+type FSEntry interface {
+	GetName() string
+	GetChildren() []FSEntry
+	cmp(FSEntry) bool
+}
+
+// SortEntries sorts a list of entries in place
+// with directories always coming before files and capitalized
+// names coming before lowercase.
+func SortEntries(entries []FSEntry) {
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].cmp(entries[j])
+	})
+}
+
+func mapEntries(manifestEntries []*filesystem.FSEntry) []FSEntry {
+	var entries []FSEntry
+	for _, entry := range manifestEntries {
+		switch e := entry.Value.(type) {
+		case *filesystem.FSEntry_File:
+			entries = append(entries, &File{name: e.File.GetName()})
+		case *filesystem.FSEntry_Directory:
+			entries = append(entries, &Folder{name: e.Directory.GetName(), children: mapEntries(e.Directory.GetEntries())})
+		}
+	}
+	return entries
+}
+
+func (s *StorageClient) GetManifest(ctx context.Context, remotePath string, recursive bool) ([]FSEntry, error) {
 	// Implementation for retrieving the manifest
 	manifest, err := s.c.GetManifest(ctx, &filesystem.ManifestRequest{Path: remotePath, Recursive: recursive})
 	if err != nil {
 		return nil, fmt.Errorf("could not retrieve manifest: %v", err)
 	}
-	return manifest, nil
+	return mapEntries(manifest.GetEntries()), nil
 }
