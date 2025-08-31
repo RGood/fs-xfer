@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/RGood/fs-xfer/pkg/files"
@@ -190,7 +191,25 @@ func structureManifest(files []string) *folder {
 	return manifest
 }
 
+func sortEntries(entries []*filesystem.FSEntry) []*filesystem.FSEntry {
+	sort.Slice(entries, func(i, j int) bool {
+		// Dirs come before files
+		if entries[i].GetDirectory() != nil && entries[j].GetFile() != nil {
+			return true
+		} else if entries[i].GetFile() != nil && entries[j].GetFile() != nil {
+			return entries[i].GetFile().GetName() < entries[j].GetFile().GetName()
+		} else if entries[i].GetDirectory() != nil && entries[j].GetDirectory() != nil {
+			return entries[i].GetDirectory().GetName() < entries[j].GetDirectory().GetName()
+		}
+
+		return false
+	})
+	return entries
+}
+
 func printDirectory(folder *filesystem.Directory, indent int) {
+	sortEntries(folder.Entries)
+
 	for _, entry := range folder.GetEntries() {
 		switch entry.Value.(type) {
 		case *filesystem.FSEntry_Directory:
@@ -203,6 +222,8 @@ func printDirectory(folder *filesystem.Directory, indent int) {
 }
 
 func prettyPrintManifest(manifest *filesystem.ManifestResponse) {
+	sortEntries(manifest.Entries)
+
 	for _, entry := range manifest.GetEntries() {
 		switch entry.Value.(type) {
 		case *filesystem.FSEntry_Directory:

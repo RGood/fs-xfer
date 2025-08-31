@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -138,22 +137,6 @@ func (s *StorageService) getBasePath(targetPath string) (string, error) {
 	return basePath, nil
 }
 
-func sortEntries(entries []*filesystem.FSEntry) []*filesystem.FSEntry {
-	sort.Slice(entries, func(i, j int) bool {
-		// Dirs come before files
-		if entries[i].GetDirectory() != nil && entries[j].GetFile() != nil {
-			return true
-		} else if entries[i].GetFile() != nil && entries[j].GetFile() != nil {
-			return entries[i].GetFile().GetName() < entries[j].GetFile().GetName()
-		} else if entries[i].GetDirectory() != nil && entries[j].GetDirectory() != nil {
-			return entries[i].GetDirectory().GetName() < entries[j].GetDirectory().GetName()
-		}
-
-		return false
-	})
-	return entries
-}
-
 func (s *StorageService) populateManifest(filePath string, dirFile *os.File, recursive bool) ([]*filesystem.FSEntry, error) {
 	entries := []*filesystem.FSEntry{}
 
@@ -193,8 +176,6 @@ func (s *StorageService) populateManifest(filePath string, dirFile *os.File, rec
 		}
 		entries = append(entries, entry)
 	}
-
-	sortEntries(entries)
 
 	return entries, nil
 }
