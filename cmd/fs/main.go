@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/RGood/fs-xfer/pkg/client"
 	"github.com/RGood/fs-xfer/pkg/files"
 	"github.com/RGood/fs-xfer/pkg/generated/filesystem"
 	"github.com/RGood/fs-xfer/pkg/units"
@@ -273,18 +274,34 @@ func printHelp() {
 func main() {
 	args := os.Args
 
-	if len(args) < 2 {
+	if len(args) < 3 {
 		printHelp()
 		return
 	}
+
+	url := args[1]
+	conn, err := grpc.NewClient(
+		url,
+		grpc.WithTransportCredentials(
+			insecure.NewCredentials(),
+		),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	c := client.NewStorageClient(conn)
 
 	if strings.ToLower(args[2]) == "upload" {
 		if len(args) != 4 {
 			fmt.Println("Usage: fs <url> upload <folder>")
 			return
 		}
-		upload(args[1], args[3])
-
+		res, err := c.Upload(context.Background(), resolveHomeDir(args[3]))
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Uploaded %s bytes to %s\n", units.FormatBytesIEC(res.GetSize()), res.GetId())
 	} else if strings.ToLower(args[2]) == "help" {
 		printHelp()
 	} else if strings.ToLower(args[2]) == "manifest" || strings.ToLower(args[2]) == "ls" {
@@ -297,7 +314,12 @@ func main() {
 			return
 		}
 
-		manifest(args[1], manifestArgs.Arg(0), *recursive)
+		manifest, err := c.GetManifest(context.Background(), manifestArgs.Arg(0), *recursive)
+		if err != nil {
+			panic(err)
+		}
+
+		prettyPrintManifest(manifest)
 	} else if strings.ToLower(args[2]) == "cp" || strings.ToLower(args[2]) == "download" {
 		if len(args) != 4 {
 			fmt.Println("Usage: fs <url> cp <folder>:<local_folder>")
@@ -316,8 +338,11 @@ func main() {
 		}
 
 		println("Downloading", parts[0], "to", resolvedFolder)
-
-		download(args[1], parts[0], resolvedFolder)
+		size, err := c.Download(context.Background(), parts[0], resolvedFolder)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Downloaded %s bytes to %s\n", units.FormatBytesIEC(size), resolvedFolder)
 	} else {
 		println("Unknown command:", args[2])
 		printHelp()
