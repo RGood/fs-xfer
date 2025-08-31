@@ -117,22 +117,6 @@ func (s *StorageService) Download(req *filesystem.DownloadRequest, stream filesy
 	return nil
 }
 
-type entryWithPath struct {
-	os.FileInfo
-	path string
-}
-
-func mapToEntryWithPath(entries []os.FileInfo, root string) []entryWithPath {
-	manifestEntries := make([]entryWithPath, len(entries))
-	for i, entry := range entries {
-		manifestEntries[i] = entryWithPath{
-			FileInfo: entry,
-			path:     root,
-		}
-	}
-	return manifestEntries
-}
-
 func (s *StorageService) pathIsValid(path string) bool {
 	res := strings.HasPrefix(path, s.root)
 	return res
