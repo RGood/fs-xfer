@@ -29,7 +29,12 @@ message ManifestResponse {
 }
 
 service StorageService {
+    // Upload accepts files in chunks. Server expects file content to be streamed in order and consecutively.
     rpc Upload(stream File) returns (UploadFilesystemResponse);
+
+    // Download streams files in chunks. Server produces file chunks in order and consecutively.
     rpc Download(DownloadRequest) returns (stream File);
+
+    // GetManifest lists the contents of a remote folder.
     rpc GetManifest(ManifestRequest) returns (ManifestResponse);
 }

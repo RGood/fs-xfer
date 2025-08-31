@@ -56,7 +56,7 @@ func upload(url string, folder string) {
 	fileChan := make(chan *files.FileProgress)
 
 	go func() {
-		if err := files.Stream(".", fileChan); err != nil {
+		if err := files.Stream(folder, fileChan); err != nil {
 			panic(err)
 		}
 		close(fileChan)
@@ -67,7 +67,6 @@ func upload(url string, folder string) {
 		outputLen := len(output)
 		print(output)
 		uploadClient.Send(p.File)
-		//time.Sleep(10 * time.Millisecond)
 		os.Stdout.Sync()
 		print("\r" + strings.Repeat(" ", outputLen))
 		print("\r")

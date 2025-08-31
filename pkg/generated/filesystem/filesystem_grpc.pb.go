@@ -22,8 +22,11 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type StorageServiceClient interface {
+	// Upload accepts files in chunks. Server expects file content to be streamed in order and consecutively.
 	Upload(ctx context.Context, opts ...grpc.CallOption) (StorageService_UploadClient, error)
+	// Download streams files in chunks. Server produces file chunks in order and consecutively.
 	Download(ctx context.Context, in *DownloadRequest, opts ...grpc.CallOption) (StorageService_DownloadClient, error)
+	// GetManifest lists the contents of a remote folder.
 	GetManifest(ctx context.Context, in *ManifestRequest, opts ...grpc.CallOption) (*ManifestResponse, error)
 }
 
@@ -114,8 +117,11 @@ func (c *storageServiceClient) GetManifest(ctx context.Context, in *ManifestRequ
 // All implementations must embed UnimplementedStorageServiceServer
 // for forward compatibility
 type StorageServiceServer interface {
+	// Upload accepts files in chunks. Server expects file content to be streamed in order and consecutively.
 	Upload(StorageService_UploadServer) error
+	// Download streams files in chunks. Server produces file chunks in order and consecutively.
 	Download(*DownloadRequest, StorageService_DownloadServer) error
+	// GetManifest lists the contents of a remote folder.
 	GetManifest(context.Context, *ManifestRequest) (*ManifestResponse, error)
 	mustEmbedUnimplementedStorageServiceServer()
 }
