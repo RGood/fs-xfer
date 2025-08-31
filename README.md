@@ -12,6 +12,8 @@ Supports arbitrary file size by transferring in chunks.
 
 ### Upload
 
+Upload folder or file to remote server.
+
 `fs <address> upload <local_path>`
 
 ### Download
@@ -21,6 +23,8 @@ Download folder or file from remote server to local filesystem.
 `fs <address> download <remote_path>:<local_path>`
 
 ### List
+
+List contents of remote folder.
 
 `fs <address> ls|manifest [-r] <remote_path>`
 
