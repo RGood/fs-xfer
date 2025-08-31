@@ -297,11 +297,11 @@ func main() {
 			fmt.Println("Usage: fs <url> upload <folder>")
 			return
 		}
-		res, err := c.Upload(context.Background(), resolveHomeDir(args[3]))
+		remoteAddr, size, err := c.Upload(context.Background(), resolveHomeDir(args[3]))
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("Uploaded %s bytes to %s\n", units.FormatBytesIEC(res.GetSize()), res.GetId())
+		fmt.Printf("Uploaded %s bytes to %s\n", units.FormatBytesIEC(size), remoteAddr)
 	} else if strings.ToLower(args[2]) == "help" {
 		printHelp()
 	} else if strings.ToLower(args[2]) == "manifest" || strings.ToLower(args[2]) == "ls" {

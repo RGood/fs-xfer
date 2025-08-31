@@ -21,6 +21,7 @@ func NewStorageClient(conn *grpc.ClientConn) *StorageClient {
 	}
 }
 
+// Download downloads the remote path to the local path and returns the total size of the downloaded data.
 func (s *StorageClient) Download(ctx context.Context, remotePath string, localPath string) (int64, error) {
 	downloadClient, err := s.c.Download(ctx, &filesystem.DownloadRequest{Path: remotePath})
 	if err != nil {
@@ -69,13 +70,14 @@ func (s *StorageClient) Download(ctx context.Context, remotePath string, localPa
 	return totalSize, nil
 }
 
-func (s *StorageClient) Upload(ctx context.Context, localPath string) (*filesystem.UploadFilesystemResponse, error) {
+// Upload uploads the file or folder at the given path and returns the remote address of the folder and its size.
+func (s *StorageClient) Upload(ctx context.Context, localPath string) (string, int64, error) {
 	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	uploadClient, err := s.c.Upload(cancelCtx)
 	if err != nil {
-		return nil, err
+		return "", 0, err
 	}
 
 	fileChan := make(chan *files.FileProgress)
@@ -91,15 +93,15 @@ func (s *StorageClient) Upload(ctx context.Context, localPath string) (*filesyst
 	}
 
 	if streamErr != nil {
-		return nil, streamErr
+		return "", 0, streamErr
 	}
 
 	res, err := uploadClient.CloseAndRecv()
 	if err != nil {
-		return nil, fmt.Errorf("could not receive upload response: %v", err)
+		return "", 0, fmt.Errorf("could not receive upload response: %v", err)
 	}
 
-	return res, nil
+	return res.GetId(), res.GetSize(), nil
 }
 
 func (s *StorageClient) GetManifest(ctx context.Context, remotePath string, recursive bool) (*filesystem.ManifestResponse, error) {
