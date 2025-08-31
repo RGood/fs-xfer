@@ -22,7 +22,7 @@ Upload folder or file to remote server.
 
 Download folder or file from remote server to local filesystem.
 
-`fs <address> download <remote_path>:<local_path>`
+`fs <address> cp <remote_path>:<local_path>`
 
 ### List
 
