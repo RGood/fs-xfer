@@ -18,6 +18,7 @@ type FileProgress struct {
 	File        *filesystem.File
 }
 
+// Given a path to a file or folder, Stream sends file chunks to the provided channel.
 func Stream(fullPath string, fileChan chan<- *FileProgress) error {
 	file, err := os.OpenFile(fullPath, os.O_RDONLY, os.ModePerm)
 	if err != nil {

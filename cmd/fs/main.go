@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/RGood/fs-xfer/pkg/files"
@@ -191,26 +190,27 @@ func structureManifest(files []string) *folder {
 	return manifest
 }
 
-func prettyPrintManifest(manifest *folder, indent int) {
-	folderKeys := make([]string, 0, len(manifest.folders))
-	for k := range manifest.folders {
-		folderKeys = append(folderKeys, k)
+func printDirectory(folder *filesystem.Directory, indent int) {
+	for _, entry := range folder.GetEntries() {
+		switch entry.Value.(type) {
+		case *filesystem.FSEntry_Directory:
+			fmt.Printf("%s%s/\n", strings.Repeat("  ", indent), entry.GetDirectory().GetName())
+			printDirectory(entry.GetDirectory(), indent+1)
+		case *filesystem.FSEntry_File:
+			fmt.Printf("%s%s\n", strings.Repeat("  ", indent), entry.GetFile().GetName())
+		}
 	}
-	sort.Strings(folderKeys)
+}
 
-	for _, name := range folderKeys {
-		fmt.Printf("%s%s/\n", strings.Repeat("  ", indent), name)
-		prettyPrintManifest(manifest.folders[name], indent+1)
-	}
-
-	fileNames := make([]string, 0, len(manifest.files))
-	for k := range manifest.files {
-		fileNames = append(fileNames, k)
-	}
-	sort.Strings(fileNames)
-
-	for _, name := range fileNames {
-		fmt.Printf("%s%s\n", strings.Repeat("  ", indent), name)
+func prettyPrintManifest(manifest *filesystem.ManifestResponse) {
+	for _, entry := range manifest.GetEntries() {
+		switch entry.Value.(type) {
+		case *filesystem.FSEntry_Directory:
+			fmt.Printf("%s/\n", entry.GetDirectory().GetName())
+			printDirectory(entry.GetDirectory(), 1)
+		case *filesystem.FSEntry_File:
+			fmt.Printf("%s\n", entry.GetFile().GetName())
+		}
 	}
 }
 
@@ -237,8 +237,7 @@ func manifest(url, path string, recursive bool) {
 		panic(err)
 	}
 
-	manifest := structureManifest(res.GetFiles())
-	prettyPrintManifest(manifest, 0)
+	prettyPrintManifest(res)
 }
 
 func printHelp() {

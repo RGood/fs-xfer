@@ -2,6 +2,7 @@ package units
 
 import "fmt"
 
+// FormatBytesIEC formats bytes into a human-readable string using IEC (International Electrotechnical Commission) units.
 func FormatBytesIEC(b int64) string {
 	const unit = 1024
 	if b < unit {

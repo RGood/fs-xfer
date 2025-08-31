@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -21,30 +22,38 @@ type StorageService struct {
 	root string
 }
 
+// NewLocalStorageService creates a new instance of StorageService with the given root directory.
 func NewLocalStorageService(root string) *StorageService {
 	return &StorageService{
 		root: filepath.Clean(root),
 	}
 }
 
-func (s *StorageService) Upload(stream filesystem.StorageService_UploadServer) error {
+func (s *StorageService) Upload(stream filesystem.StorageService_UploadServer) (err error) {
 	id := uuid.NewString()
 	ctx, cancel := context.WithTimeout(stream.Context(), 60*time.Second)
 	defer cancel()
 
 	totalSize := 0
 
+	// Cleanup + Logging
+	defer func() {
+		if err != nil {
+			println("Upload failed. Deleting directory:", path.Join(s.root, id), err.Error())
+			os.RemoveAll(path.Join(s.root, id))
+		} else {
+			fmt.Printf("Upload complete. %s bytes stored in: %s\n", units.FormatBytesIEC(int64(totalSize)), path.Join(s.root, id))
+
+		}
+	}()
+
 	curFileName := ""
 	var curFile *os.File
 
 	for file, err := stream.Recv(); err != io.EOF; file, err = stream.Recv() {
 		if err != nil {
-			println("Upload exited unsuccessfully. Deleting directory:", path.Join(s.root, id), err.Error())
-			os.RemoveAll(path.Join(s.root, id))
 			return err
 		} else if ctx.Err() != nil {
-			println("Upload exited due to context error. Deleting directory:", path.Join(s.root, id), ctx.Err().Error())
-			os.RemoveAll(path.Join(s.root, id))
 			return ctx.Err()
 		}
 
@@ -52,33 +61,35 @@ func (s *StorageService) Upload(stream filesystem.StorageService_UploadServer) e
 		fullFileName := path.Join(s.root, id, cleanedPath, file.Name)
 
 		if curFileName != fullFileName {
+			// Close current file if it exists
 			curFile.Close()
-			curFileName = fullFileName
 
+			// Ensure parent dir exists
 			if err := os.MkdirAll(path.Dir(fullFileName), os.ModeDir); err != nil {
 				return err
 			}
 
+			// Open the file for writing
 			f, err := os.OpenFile(fullFileName, os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
-				println("Error creating file:", fullFileName)
 				return err
 			}
 
+			// Update the current file + filename
+			curFileName = fullFileName
 			curFile = f
 		}
 
+		// Write chunk to current file
 		b, err := curFile.Write(file.Data)
 		if err != nil {
 			return err
 		}
-		//fmt.Printf("Wrote %d bytes to `%s`\n", b, fullFileName)
+
 		totalSize += b
 	}
 
 	curFile.Close()
-
-	fmt.Printf("Upload complete. %s bytes stored in: %s\n", units.FormatBytesIEC(int64(totalSize)), path.Join(s.root, id))
 
 	return stream.SendAndClose(&filesystem.UploadFilesystemResponse{Id: id, Size: int64(totalSize)})
 }
@@ -143,6 +154,67 @@ func (s *StorageService) getBasePath(targetPath string) (string, error) {
 	return basePath, nil
 }
 
+func sortEntries(entries []*filesystem.FSEntry) []*filesystem.FSEntry {
+	sort.Slice(entries, func(i, j int) bool {
+		// Dirs come before files
+		if entries[i].GetDirectory() != nil && entries[j].GetFile() != nil {
+			return true
+		} else if entries[i].GetFile() != nil && entries[j].GetFile() != nil {
+			return entries[i].GetFile().GetName() < entries[j].GetFile().GetName()
+		} else if entries[i].GetDirectory() != nil && entries[j].GetDirectory() != nil {
+			return entries[i].GetDirectory().GetName() < entries[j].GetDirectory().GetName()
+		}
+
+		return false
+	})
+	return entries
+}
+
+func (s *StorageService) populateManifest(filePath string, dirFile *os.File, recursive bool) ([]*filesystem.FSEntry, error) {
+	entries := []*filesystem.FSEntry{}
+
+	files, err := dirFile.Readdir(0)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, fileInfo := range files {
+		entry := &filesystem.FSEntry{}
+		if fileInfo.IsDir() {
+			entries := []*filesystem.FSEntry{}
+			if recursive {
+				file, err := os.OpenFile(filepath.Join(filePath, fileInfo.Name()), os.O_RDONLY, os.ModePerm)
+				if err != nil {
+					return nil, err
+				}
+				defer file.Close()
+
+				entries, err = s.populateManifest(filepath.Join(filePath, fileInfo.Name()), file, true)
+				if err != nil {
+					return nil, err
+				}
+			}
+			entry.Value = &filesystem.FSEntry_Directory{
+				Directory: &filesystem.Directory{
+					Name:    fileInfo.Name(),
+					Entries: entries,
+				},
+			}
+		} else {
+			entry.Value = &filesystem.FSEntry_File{
+				File: &filesystem.FileInfo{
+					Name: fileInfo.Name(),
+				},
+			}
+		}
+		entries = append(entries, entry)
+	}
+
+	sortEntries(entries)
+
+	return entries, nil
+}
+
 func (s *StorageService) GetManifest(ctx context.Context, req *filesystem.ManifestRequest) (*filesystem.ManifestResponse, error) {
 	basePath, err := s.getBasePath(req.GetPath())
 	if err != nil {
@@ -155,44 +227,10 @@ func (s *StorageService) GetManifest(ctx context.Context, req *filesystem.Manife
 	}
 	defer f.Close()
 
-	files := map[string]struct{}{}
-
-	entries, err := f.Readdir(0)
+	entries, err := s.populateManifest(basePath, f, req.GetRecursive())
 	if err != nil {
 		return nil, err
 	}
 
-	manifestEntries := mapToEntryWithPath(entries, ".")
-
-	for len(manifestEntries) > 0 {
-		entry := manifestEntries[0]
-		manifestEntries = manifestEntries[1:]
-
-		if !entry.IsDir() {
-			files[path.Join(entry.path, entry.Name())] = struct{}{}
-		} else {
-			f, err := os.OpenFile(path.Join(basePath, entry.path, entry.Name()), os.O_RDONLY, os.ModePerm)
-			if err != nil {
-				return nil, err
-			}
-
-			newEntries, err := f.Readdir(0)
-			if err != nil {
-				return nil, err
-			}
-
-			files[path.Join(entry.path, entry.Name())+"/"] = struct{}{}
-
-			if req.Recursive {
-				manifestEntries = append(manifestEntries, mapToEntryWithPath(newEntries, path.Join(entry.path, entry.Name()))...)
-			}
-		}
-	}
-
-	keys := make([]string, 0, len(files))
-	for k := range files {
-		keys = append(keys, k)
-	}
-
-	return &filesystem.ManifestResponse{Files: keys}, nil
+	return &filesystem.ManifestResponse{Entries: entries}, nil
 }

@@ -25,7 +25,23 @@ message ManifestRequest {
 }
 
 message ManifestResponse {
-    repeated string files = 1;
+    repeated FSEntry entries = 1;
+}
+
+message Directory {
+    string name = 1;
+    repeated FSEntry entries = 2;
+}
+
+message FileInfo {
+    string name = 1;
+}
+
+message FSEntry {
+    oneof value {
+        FileInfo file = 1;
+        Directory directory = 2;
+    }
 }
 
 service StorageService {
